@@ -1,0 +1,32 @@
+#!/bin/sh
+# Inspired by: https://github.com/visionmedia/git-extras/blob/a55cc84a1145936535e00153ac4cdd6a1f6812cc/bin/git-changelog
+
+while [ "$1" != "" ]; do
+  case $1 in
+    -l | --list )
+      LIST=true
+      ;;
+    -t | --tag )
+      TAG=$2
+      shift
+      ;;
+    * )
+      FILE=$1
+      ;;
+  esac
+  shift
+done
+
+if $LIST; then
+  version=$(git describe --tags --abbrev=0)
+   # $(git rev-list --tags --max-count=1))
+  if test -z "$version"; then
+    git --no-pager log --format="* %s (%ae) %h" | sed 's/(@\([^@]*\).*)/(@\1)/'
+  else
+    # git --no-pager log --format="* %s (@%ae) %h" $version.. | sed 's/@[^)]*//g'
+    git --no-pager log --format="* %s (@%ae) %h" $version.. | sed 's/(@\([^@]*\).*)/(@\1)/'
+  fi
+  exit
+fi
+
+git-changelog --list
