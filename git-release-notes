@@ -17,11 +17,31 @@ while [ "$1" != "" ]; do
   shift
 done
 
+function format_changes {
+  changes=$(eval "$CMD | sed 's/(@\([^@]*\).*)/(@\1)/'")
+  if test -z "$changes"; then
+    echo "There have been no changes since $version was tagged."
+    echo ""
+    echo "Did you mean to display the notes for the previous tag?"
+    exit 1
+  else
+    echo $HEADER
+    echo ""
+    echo "$changes"
+  fi
+}
+
 if $LIST; then
   version=$(git describe --tags --abbrev=0)
+
+  BASE_CMD="git --no-pager log --format='* %s (@%ae) %h'"
   if test -z "$version"; then
-    git --no-pager log --format="* %s (%ae) %h" | sed 's/(@\([^@]*\).*)/(@\1)/'
+    HEADER="Release notes for the entire repo"
+    CMD=$BASE_CMD
   else
-    git --no-pager log --format="* %s (@%ae) %h" $version.. | sed 's/(@\([^@]*\).*)/(@\1)/'
+    HEADER="Release notes for $version"
+    CMD="$BASE_CMD $version.."
   fi
+  format_changes
 fi
+
