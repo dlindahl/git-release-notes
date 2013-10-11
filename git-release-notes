@@ -1,47 +1,79 @@
 #!/bin/sh
 # Inspired by: https://github.com/visionmedia/git-extras/blob/a55cc84a1145936535e00153ac4cdd6a1f6812cc/bin/git-changelog
 
-while [ "$1" != "" ]; do
-  case $1 in
-    -l | --list )
-      LIST=true
-      ;;
-    -t | --tag )
-      TAG=$2
-      shift
-      ;;
-    * )
-      FILE=$1
-      ;;
+SUBDIRECTORY_OK=Yes
+OPTIONS_SPEC="\
+git release-notes [--tag <tag>]
+--
+ Available options are
+t,tag=!             changes since the given tag
+"
+. git-sh-setup
+. git-sh-i18n
+require_work_tree_exists
+cd_to_toplevel
+
+header=
+cmd="git --no-pager log --format='* %s (@%ae) %h'"
+
+total_argc=$#
+while test $# != 0
+do
+  case "$1" in
+  -t|--tag)
+    test 2 -le "$#" || usage
+    tag="$2"
+    shift
+    ;;
+  --)
+    shift
+    break
+    ;;
   esac
   shift
 done
+test $# -gt 2 && usage
 
-function format_changes {
-  changes=$(eval "$CMD | sed 's/(@\([^@]*\).*)/(@\1)/'")
-  if test -z "$changes"; then
-    echo "There have been no changes since $version was tagged."
+
+if test -z "$tag"; then
+  tag=$(git describe --tags --abbrev=0 2>/dev/null)
+else
+  if test -z $(git tag -l $tag); then
+    echo "error: \"$tag\" is not a valid tag!"
     echo ""
-    echo "Did you mean to display the notes for the previous tag?"
+    echo "Please choose one of the following tags:"
+    echo "$(git tag)"
     exit 1
-  else
-    echo $HEADER
-    echo ""
-    echo "$changes"
   fi
-}
-
-if $LIST; then
-  version=$(git describe --tags --abbrev=0)
-
-  BASE_CMD="git --no-pager log --format='* %s (@%ae) %h'"
-  if test -z "$version"; then
-    HEADER="Release notes for the entire repo"
-    CMD=$BASE_CMD
-  else
-    HEADER="Release notes for $version"
-    CMD="$BASE_CMD $version.."
-  fi
-  format_changes
 fi
 
+if test -z "$tag"; then
+  header="Release notes for the entire repo"
+else
+  header="Release notes for the $tag tag"
+  cmd="$cmd $tag.."
+fi
+
+changes=$(eval "$cmd | sed 's/(@\([^@]*\).*)/(@\1)/'")
+if test -z "$changes"; then
+  ####
+  # From https://www.silviogutierrez.com/blog/getting-last-element-bash-array/
+  set -f; IFS=$'\n'
+  tags=($(git tag))
+  set +f; unset IFS
+  len=${#tags[@]} # Get the length
+  second_to_last_pos=$((len - 2))
+  previous_tag=${tags[${second_to_last_pos}]}
+  ####
+
+  echo "There have been no changes since $tag was tagged."
+  echo ""
+  echo "Did you mean to display the changes for the previous tag?"
+  echo ""
+  echo "        git release-notes --tag $previous_tag"
+  exit 1
+else
+  echo $header
+  echo ""
+  echo "$changes"
+fi
